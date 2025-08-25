@@ -100,6 +100,19 @@ This provides:
 - Interactive question answering with source citations
 - Advanced configuration options for embedding models and chunking parameters
 
+### 5. One-command launchers (after `pip install -e .`)
+
+```bash
+rag-build --docs ./docs
+rag-ask "What is the secure loop current deadband?"
+rag-serve
+rag-ui
+```
+
+> These convenience commands assume an editable install of this repo. If you later want
+> to ship a wheel that bundles the UI, move `app/streamlit_app.py` under `src/rag_simple/ui/`
+> and keep the same entry points.
+
 ## Configuration
 
 The system can be configured through environment variables:

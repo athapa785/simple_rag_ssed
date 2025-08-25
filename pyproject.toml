@@ -26,3 +26,9 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[project.scripts]
+rag-build = "rag_simple:build_index_cli"
+rag-ask   = "rag_simple:ask_cli"
+rag-serve = "rag_simple:serve_cli"
+rag-ui    = "rag_simple:ui_cli"

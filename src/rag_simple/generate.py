@@ -17,7 +17,7 @@ except Exception as e:
 SYS_PROMPT = (
     "You are a careful technical assistant answering ONLY from the provided context. "
     "If the answer is not in the context, say you don't know. "
-    "Cite sources inline using [source: path page:X] markers already included in the context."
+    "Cite sources inline using markers already included in the context."
 )
 
 
@@ -35,7 +35,7 @@ def answer(cfg: Config, question: str) -> Dict[str, Any]:
         f"System: {SYS_PROMPT}\n\n"
         f"Context:\n{context}\n\n"
         f"User question: {question}\n\n"
-        f"Answer concisely, and include citations by quoting the [source: ...] headers where relevant."
+        f"Answer concisely, and include citations by quoting the headers where relevant."
     )
 
     if ollama is None:
