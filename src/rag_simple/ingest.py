@@ -59,10 +59,6 @@ def ingest_dir(cfg: Config, docs_dir: str):
         col.add(ids=batch_ids, documents=batch_docs, metadatas=batch_metas)
 
     # Persist
-    try:
-        client.persist()
-    except Exception:
-        pass
 
     count = col.count()
     logger.info(f"Ingestion complete. Collection size: {count}")

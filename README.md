@@ -35,6 +35,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
+pip install -e .
 
 # (Optional) Install Tesseract for OCR support
 # macOS: brew install tesseract
@@ -70,8 +71,13 @@ python scripts/ask.py "Your question about the documents"
 ### 3. Run as API Server
 
 ```bash
-uvicorn scripts.serve:app --host 0.0.0.0 --port 8080
+# Use the venv's interpreter to avoid import issues
+python -m uvicorn scripts.serve:app --host 0.0.0.0 --port 8080
+# or explicitly use the venv's uvicorn binary
+./.venv/bin/uvicorn scripts.serve:app --host 0.0.0.0 --port 8080
 ```
+
+> If you accidentally run the global/conda uvicorn (e.g., /opt/anaconda3/bin/uvicorn), it won't see the project's src/ package. Always use the venv's uvicorn or `python -m uvicorn`.
 
 Then query using:
 
@@ -80,6 +86,19 @@ curl 'http://localhost:8080/ask?q=Your%20question%20about%20the%20documents'
 ```
 
 Or access the API docs at: http://localhost:8080/docs
+
+### 4. Run Streamlit UI
+
+The project includes a user-friendly Streamlit interface for document management and querying:
+
+```bash
+python -m streamlit run app/streamlit_app.py
+```
+
+This provides:
+- A document upload interface with drag-and-drop functionality
+- Interactive question answering with source citations
+- Advanced configuration options for embedding models and chunking parameters
 
 ## Configuration
 
@@ -109,6 +128,8 @@ OLLAMA_MODEL=mistral:7b
 
 ```
 simple_rag_ssed/
+├── app/                 # Web application
+│   └── streamlit_app.py # Streamlit UI
 ├── docs/                # Place your documents here
 ├── scripts/             # Command-line scripts
 │   ├── ask.py           # CLI question answering
