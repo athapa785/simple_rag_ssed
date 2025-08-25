@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rag_simple"
+version = "0.1.0"
+description = "Simple, robust dense-only RAG"
+authors = [{ name = "Your Name" }]
+requires-python = ">=3.10"
+dependencies = [
+  "chromadb>=0.4.24",
+  "sentence-transformers>=2.2.2",
+  "pymupdf>=1.23.8",
+  "pytesseract>=0.3.10",
+  "Pillow>=10.0.0",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "ollama>=0.2.0",
+  "python-dotenv>=1.0.1",
+  "tqdm>=4.66",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
