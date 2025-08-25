@@ -18,6 +18,19 @@ DOCS_DIR_DEFAULT = os.path.join(ROOT, "docs")
 
 st.set_page_config(page_title="SSED Document Assistant", layout="wide")
 
+# Keep chat input fixed at the bottom and avoid overlap with content
+st.markdown(
+    """
+    <style>
+    /* Pin Chat Input */
+    [data-testid="stChatInput"] { position: fixed; bottom: 10px; left: 10px; right: 10px; z-index: 1000; }
+    /* Add bottom padding so the last messages aren't hidden behind the input */
+    .main .block-container { padding-bottom: 6rem; }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 @st.cache_resource(show_spinner=False)
 def get_cfg():
     return Config()
@@ -91,49 +104,71 @@ def ui():
 
     cfg, docs_dir = sidebar_controls()
 
-    # Initialize one-shot trigger so pressing Enter runs Ask
-    if "ask_trigger" not in st.session_state:
-        st.session_state["ask_trigger"] = False
-
     tab_ask, tab_retrain = st.tabs(["Ask", "Re-train (Expert only)"])  # two-tab layout
 
     # -------------------- Ask tab --------------------
     with tab_ask:
         st.subheader("Ask")
 
-        # When Enter is pressed in the input, set a one-shot trigger
-        def _trigger_ask():
-            st.session_state["ask_trigger"] = True
+        # Initialize persistent chat history (assistant messages only; each stores Q + A together)
+        if "chat" not in st.session_state:
+            st.session_state["chat"] = []  # list of {role:"assistant", content:str, sources:list}
 
-    q = st.text_input("Question", key="ask_q", on_change=_trigger_ask)
-    go = st.button("Ask", key="ask_go")
+        # Render history: show only assistant messages, each includes the corresponding question
+        for msg in st.session_state["chat"]:
+            if msg.get("role") != "assistant":
+                continue
+            with st.chat_message("assistant"):
+                st.markdown(msg.get("content", ""))
+                srcs = msg.get("sources", [])
+                if srcs:
+                    with st.expander("References"):
+                        for s in srcs:
+                            path = s.get("source")
+                            page = s.get("page")
+                            chunk = s.get("chunk")
+                            score = s.get("score")
+                            base = os.path.basename(path) if path else ""
+                            label = (
+                                f"• {base} — page {page}, chunk {chunk}, dist {score:.4f}" if score is not None
+                                else f"• {base} — page {page}, chunk {chunk}"
+                            )
+                            st.markdown(label)
 
-    triggered = go or st.session_state.get("ask_trigger", False)
-    if triggered and q.strip():
-        with st.spinner("Fetching the answer..."):
-            resp = answer(cfg, q.strip())
+        # Input at the bottom, Enter submits
+        user_q = st.chat_input("Type your question…")
+        if user_q:
+            # Generate answer
+            with st.spinner("Retrieving + generating..."):
+                resp = answer(cfg, user_q.strip())
 
-        # reset the trigger so we don't re-run on the next render
-        st.session_state["ask_trigger"] = False
+            # Combine Question + Answer into a single assistant message
+            combined = f"**Question**\n\n> {user_q}\n\n**Answer**\n\n{resp.get('answer', '')}"
 
-        st.markdown("### Answer")
-        st.write(resp.get("answer", ""))
+            # Show it immediately
+            with st.chat_message("assistant"):
+                st.markdown(combined)
+                srcs = resp.get("sources", [])
+                if srcs:
+                    with st.expander("References"):
+                        for s in srcs:
+                            path = s.get("source")
+                            page = s.get("page")
+                            chunk = s.get("chunk")
+                            score = s.get("score")
+                            base = os.path.basename(path) if path else ""
+                            label = (
+                                f"• {base} — page {page}, chunk {chunk}, dist {score:.4f}" if score is not None
+                                else f"• {base} — page {page}, chunk {chunk}"
+                            )
+                            st.markdown(label)
 
-        sources = resp.get("sources", [])
-        if sources:
-            st.markdown("### Sources")
-            for s in sources:
-                path = s.get("source")
-                page = s.get("page")
-                chunk = s.get("chunk")
-                score = s.get("score")
-                label = (
-                    f"{os.path.basename(path)}  — page {page}, chunk {chunk}, dist {score:.4f}"
-                    if score is not None
-                    else f"{os.path.basename(path)}  — page {page}, chunk {chunk}"
-                )
-                with st.expander(label):
-                    st.code(s.get("text", "")[:4000])
+            # Persist assistant message so it stays on the page
+            st.session_state["chat"].append({
+                "role": "assistant",
+                "content": combined,
+                "sources": resp.get("sources", []),
+            })
 
     # -------------------- Retrain tab --------------------
     with tab_retrain:
@@ -146,6 +181,14 @@ def ui():
             if st.button("Clear index (delete DB)", type="secondary", use_container_width=True, key="btn_clear_index"):
                 clear_index(cfg)
                 st.success("Vector DB cleared.")
+                # Log to chat
+                if "chat" not in st.session_state:
+                    st.session_state["chat"] = []
+                st.session_state["chat"].append({
+                    "role": "assistant",
+                    "content": "**Index action**\n\nVector DB cleared.",
+                    "sources": [],
+                })
                 st.experimental_rerun()
         with c3:
             count = index_count(cfg)
@@ -171,6 +214,15 @@ def ui():
                     with st.spinner("Ingesting..."):
                         ingest_dir(cfg, docs_dir)
                     st.success(f"Ingested {len(paths)} file(s).")
+                    # Log to chat
+                    new_count = index_count(cfg)
+                    if "chat" not in st.session_state:
+                        st.session_state["chat"] = []
+                    st.session_state["chat"].append({
+                        "role": "assistant",
+                        "content": f"**Index action**\n\nSaved and ingested {len(paths)} file(s). Collection size: **{new_count}**.",
+                        "sources": [],
+                    })
                     st.experimental_rerun()
                 else:
                     st.info("Nothing uploaded.")
@@ -186,15 +238,18 @@ def ui():
                 with st.spinner("Ingesting docs/ ..."):
                     ingest_dir(cfg, docs_dir)
                 st.success("Ingestion finished.")
+                # Log to chat
+                new_count = index_count(cfg)
+                if "chat" not in st.session_state:
+                    st.session_state["chat"] = []
+                st.session_state["chat"].append({
+                    "role": "assistant",
+                    "content": f"**Index action**\n\nRe-ingested docs/. Collection size: **{new_count}**.",
+                    "sources": [],
+                })
                 st.experimental_rerun()
 
         st.caption(f"Docs dir: `{docs_dir}`  – You can also populate it manually in Finder/Explorer.")
-
-    st.divider()
-    st.caption(
-        "Dense-only retrieval (Chroma + Sentence-Transformers) → prompt stuffing → local LLM via Ollama. "
-        "Optional OCR if Tesseract is installed. No rerankers."
-    )
 
 if __name__ == "__main__":
     ui()
